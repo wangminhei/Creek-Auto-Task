@@ -1,21 +1,15 @@
 // ============================================
-// AUTO BOT CREEK FINANCE - SUI TESTNET (AN TOÀN)
-// by WangMinHei - Đã được kiểm duyệt & hoạt động 100%
+// AUTO BOT CREEK FINANCE - SUI TESTNET
+// by WangMinHei - ĐẸP TRAI :)
 // ============================================
 
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { Transaction } from '@mysten/sui/transactions';
 import { SuiClient } from '@mysten/sui/client';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
-import fs from 'fs';
 import { config } from 'dotenv';
 
-// ============================================
-// TẢI private.env
-// ============================================
 config({ path: 'private.env' });
-
-// Kiểm tra private key
 if (!process.env.PK1) {
     console.error('LỖI: File private.env không tồn tại hoặc trống!');
     console.error('Hướng dẫn: Tạo file private.env với PK1, PK2...');
@@ -29,23 +23,22 @@ const CONFIG = {
     RPC_URL: 'https://sui-testnet-rpc.publicnode.com',
     PROXY_FILE: 'proxy.txt',
     SUI_FAUCET_URL: 'https://faucet.testnet.sui.io/v2/gas',
-    SUI_FAUCET_RETRIES: 50,
     MIN_SUI_BALANCE: 1,
     MIST_PER_SUI: 1000000000,
     GAS_BUDGET: '200000000',
     DECIMALS: 1000000000,
-    XAUM_CLAIM_COUNT: 1,
-    USDC_CLAIM_COUNT: 10,
-    SWAP_USDC_TO_GUSD_COUNT: 0.1,
-    SWAP_GUSD_TO_USDC_COUNT: 0.1,
-    STAKE_XAUM_COUNT: 0.1,
-    REDEEM_XAUM_COUNT: 0.1,
-    DEPOSIT_GR_COUNT: 0.1,
-    DEPOSIT_SUI_COUNT: 0.01,
-    DEPOSIT_USDC_COUNT: 0.1,
-    BORROW_GUSD_COUNT: 1,
-    REPAY_GUSD_COUNT: 1,
-    WITHDRAW_COUNT: 1,
+    XAUM_CLAIM_COUNT: 3,
+    USDC_CLAIM_COUNT: 3,
+    SWAP_USDC_TO_GUSD_COUNT: 3,
+    SWAP_GUSD_TO_USDC_COUNT: 1,
+    STAKE_XAUM_COUNT: 3,
+    REDEEM_XAUM_COUNT: 3,
+    DEPOSIT_GR_COUNT: 3,
+    DEPOSIT_SUI_COUNT: 3,
+    DEPOSIT_USDC_COUNT: 3,
+    BORROW_GUSD_COUNT: 3,
+    REPAY_GUSD_COUNT: 3,
+    WITHDRAW_COUNT: 3,
     COIN_FETCH_RETRIES: 5,
     RATE_LIMIT_COOLDOWN: 30,
     FAUCET_PACKAGE: '0xa03cb0b29e92c6fa9bfb7b9c57ffdba5e23810f20885b4390f724553d32efb8b',
@@ -72,7 +65,7 @@ const CONFIG = {
 };
 
 const HEALTH_FACTOR_CONFIG = {
-    DEPOSIT_PERCENTAGE: { GR: 0.70, SUI: 0.50, USDC: 0.80 },
+    DEPOSIT_PERCENTAGE: { GR: 0.70, SUI: 0.010, USDC: 0.80 },
     MIN_RESERVE: { GR: 50 * 1e9, SUI: 1 * 1e9, USDC: 5 * 1e9 },
     PRICE: { GR: 150.5, SUI: 3.18, USDC: 1.0, GUSD: 1.05 }
 };
@@ -80,283 +73,373 @@ const HEALTH_FACTOR_CONFIG = {
 const suiClient = new SuiClient({ url: CONFIG.RPC_URL });
 
 // ============================================
-// QUẢN LÝ PROXY
+// UTILITY
 // ============================================
-function readProxyMappings(filename = CONFIG.PROXY_FILE) {
-    try {
-        if (!fs.existsSync(filename)) {
-            console.log(`Cảnh báo: File ${filename} không tồn tại - dùng IP cục bộ cho tất cả ví`);
-            return {};
-        }
-        const proxies = {};
-        const lines = fs.readFileSync(filename, 'utf8').split('\n');
-        lines.forEach((line, index) => {
-            const trimmed = line.trim();
-            if (trimmed && !trimmed.startsWith('#')) {
-                proxies[`pk${index + 1}`] = trimmed;
-            } else {
-                proxies[`pk${index + 1}`] = null;
-            }
-        });
-        return proxies;
-    } catch (error) {
-        console.error(`Lỗi đọc file ${filename}:`, error.message);
-        return {};
-    }
+function getRandomDelay(min, max) {
+    return Math.floor(Math.random() * (max - min + 1) + min) * 1000;
 }
-
-function getProxyForWallet(walletIndex, proxyMappings) {
-    const key = `pk${walletIndex}`;
-    const proxy = proxyMappings[key];
-    if (!proxy) {
-        console.log(`Dùng IP cục bộ`);
-        return null;
-    }
-    console.log(`Dùng Proxy: ${proxy}`);
-    return proxy;
+async function delay(ms, msg = 'Đang chờ') {
+    console.log(`[Clock] ${msg} ${Math.floor(ms / 1000)} giây...`);
+    return new Promise(r => setTimeout(r, ms));
 }
-
-// ============================================
-// ĐỌC PRIVATE KEY TỪ .env
-// ============================================
+function getRandomAmount(min, max) {
+    return Math.floor((Math.random() * (max - min) + min) * CONFIG.DECIMALS);
+}
 function readPrivateKeys() {
     const keys = [];
     let i = 1;
     while (process.env[`PK${i}`]) {
-        const key = process.env[`PK${i}`].trim();
-        if (key && key.length > 10) {
-            keys.push(key);
-        }
+        const k = process.env[`PK${i}`].trim();
+        if (k && k.length > 10) keys.push(k);
         i++;
-    }
-    if (keys.length === 0) {
-        console.log('Lỗi: Không tìm thấy private key nào trong file private.env!');
     }
     return keys;
 }
-
-// ============================================
-// HÀM HỖ TRỢ
-// ============================================
-function getRandomDelay(minSec, maxSec) {
-    return Math.floor(Math.random() * (maxSec - minSec + 1) + minSec) * 1000;
-}
-
-async function delay(ms, message = 'Đang chờ') {
-    console.log(`⏳ ${message} ${Math.floor(ms / 1000)} giây...`);
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function getRandomAmount(min, max, decimals = CONFIG.DECIMALS) {
-    return Math.floor((Math.random() * (max - min) + min) * decimals);
-}
-
-function importWallet(privateKeyStr) {
+function importWallet(k) {
     try {
-        const secretKey = decodeSuiPrivateKey(privateKeyStr);
-        const keypair = Ed25519Keypair.fromSecretKey(secretKey.secretKey);
-        const address = keypair.getPublicKey().toSuiAddress();
-        return { keypair, address };
-    } catch (error) {
-        console.error('Lỗi nhập ví:', error.message);
-        return null;
-    }
+        const s = decodeSuiPrivateKey(k);
+        const kp = Ed25519Keypair.fromSecretKey(s.secretKey);
+        return { keypair: kp, address: kp.getPublicKey().toSuiAddress() };
+    } catch { return null; }
 }
 
-async function getSuiBalance(address) {
+// ============================================
+// BALANCE & COINS
+// ============================================
+async function getSuiBalance(addr) {
     try {
-        const balance = await suiClient.getBalance({ owner: address });
-        return parseInt(balance.totalBalance) / CONFIG.MIST_PER_SUI;
-    } catch (error) {
-        return 0;
-    }
+        return parseInt((await suiClient.getBalance({ owner: addr })).totalBalance) / CONFIG.MIST_PER_SUI;
+    } catch { return 0; }
 }
-
-// ============================================
-// FAUCET CHỈ DÙNG URL CHÍNH THỨC
-// ============================================
-async function requestSuiFaucet(address) {
-    const ALLOWED_FAUCET = 'https://faucet.testnet.sui.io/v2/gas';
-    if (CONFIG.SUI_FAUCET_URL !== ALLOWED_FAUCET) {
-        console.error('CẢNH BÁO: URL FAUCET BỊ THAY ĐỔI - NGUY HIỂM!');
-        return { success: false, error: 'URL không hợp lệ' };
+async function ensureSuiFaucet(addr) {
+    if (await getSuiBalance(addr) >= CONFIG.MIN_SUI_BALANCE) return true;
+    for (let i = 1; i <= 5; i++) {
+        try {
+            const res = await fetch(CONFIG.SUI_FAUCET_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ FixedAmountRequest: { recipient: addr } })
+            });
+            if (res.status === 200) return true;
+            if (res.status === 429) await delay(5000);
+        } catch { await delay(5000); }
     }
-
-    try {
-        const response = await fetch(ALLOWED_FAUCET, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ FixedAmountRequest: { recipient: address } })
-        });
-        const responseText = await response.text();
-        if (response.status === 429) return { success: false, error: 'Giới hạn tốc độ', isRateLimit: true };
-        if (response.status === 200) {
-            try {
-                const data = JSON.parse(responseText);
-                if (data.status?.Failure) return { success: false, error: data.status.Failure.Internal || 'Lỗi' };
-                return { success: true, data };
-            } catch (e) {
-                return { success: false, error: 'JSON không hợp lệ' };
-            }
-        }
-        return { success: false, error: `Mã lỗi: ${response.status}` };
-    } catch (error) {
-        return { success: false, error: error.message };
-    }
-}
-
-// ============================================
-// ĐẢM BẢO ĐỦ SUI
-// ============================================
-async function ensureSuiFaucet(address) {
-    console.log(`\nKiểm tra số dư: Cần ít nhất ${CONFIG.MIN_SUI_BALANCE} SUI...`);
-    for (let attempt = 1; attempt <= CONFIG.SUI_FAUCET_RETRIES; attempt++) {
-        const currentBalance = await getSuiBalance(address);
-        console.log(`Số dư: ${currentBalance.toFixed(6)} SUI (lần ${attempt}/${CONFIG.SUI_FAUCET_RETRIES})`);
-        if (currentBalance >= CONFIG.MIN_SUI_BALANCE) {
-            console.log(`Đủ SUI!`);
-            return true;
-        }
-        console.log(`Yêu cầu SUI từ faucet...`);
-        const result = await requestSuiFaucet(address);
-        if (result.success) {
-            console.log(`Nhận SUI thành công!`);
-            await delay(3000, 'Cập nhật số dư:');
-        } else {
-            console.log(`Thất bại: ${result.error}`);
-            if (result.isRateLimit) {
-                await delay(getRandomDelay(3, 10), 'Chờ giới hạn:');
-            } else if (attempt < CONFIG.SUI_FAUCET_RETRIES) {
-                await delay(getRandomDelay(3, 10), 'Thử lại:');
-            }
-        }
-    }
-    const finalBalance = await getSuiBalance(address);
-    if (finalBalance >= CONFIG.MIN_SUI_BALANCE) {
-        console.log(`Đủ SUI!`);
-        return true;
-    }
-    console.log(`Không đủ SUI sau ${CONFIG.SUI_FAUCET_RETRIES} lần thử`);
     return false;
 }
-
-// ============================================
-// HÀM XỬ LÝ VÍ
-// ============================================
-async function processWallet(keypair, address, walletIndex, totalWallets, proxyUrl) {
-    console.log(`\nWALLET ${walletIndex}/${totalWallets}`);
-    console.log(`Địa chỉ: ${address.substring(0, 8)}...${address.slice(-6)}`);
-    if (proxyUrl) console.log(`Proxy: ${proxyUrl}`);
-    else console.log(`Dùng IP cục bộ`);
-
-    const balanceBefore = await getWalletBalances(address);
-    console.log(`\nSố dư ban đầu: GR: ${balanceBefore.GR.toFixed(2)}, SUI: ${balanceBefore.SUI.toFixed(6)}, USDC: ${balanceBefore.USDC.toFixed(2)}`);
-
-    let stats = { xaumClaims: 0, usdcClaims: 0, swapUsdcToGusd: 0, swapGusdToUsdc: 0, stakes: 0, redeems: 0, depositGr: 0, depositSui: 0, depositUsdc: 0, borrowGusd: 0, repayGusd: 0, withdrawGr: 0 };
-    let obligationId = null;
-    let obligationKeyId = null;
-
+async function getCoins(addr, type) {
     try {
-        // Bước 1: Đảm bảo đủ SUI
-        if (!(await ensureSuiFaucet(address))) {
-            console.log('Không đủ SUI để tiếp tục');
-            return { success: false, stats, balanceBefore, balanceAfter: null };
-        }
+        return (await suiClient.getCoins({ owner: addr, coinType: type })).data;
+    } catch (e) {
+        if (e.message.includes('429')) await delay(CONFIG.RATE_LIMIT_COOLDOWN * 1000);
+        return [];
+    }
+}
+async function getCoinsWithRetry(addr, type) {
+    let coins = [];
+    for (let i = 0; i < CONFIG.COIN_FETCH_RETRIES; i++) {
+        coins = await getCoins(addr, type);
+        if (coins.length > 0) break;
+        await delay(getRandomDelay(10, 15));
+    }
+    return coins;
+}
+async function getTokenBalance(addr, type) {
+    if (type === CONFIG.SUI_TYPE) return await getSuiBalance(addr);
+    const coins = await getCoins(addr, type);
+    const total = coins.reduce((s, c) => s + BigInt(c.balance), 0n);
+    return Number(total) / CONFIG.DECIMALS;
+}
+async function getWalletBalances(addr) {
+    return {
+        GR: Number(await getTokenBalance(addr, CONFIG.GR_TYPE)),
+        SUI: Number(await getTokenBalance(addr, CONFIG.SUI_TYPE)),
+        USDC: Number(await getTokenBalance(addr, CONFIG.USDC_TYPE)),
+        GUSD: Number(await getTokenBalance(addr, CONFIG.GUSD_TYPE)),
+        XAUM: Number(await getTokenBalance(addr, CONFIG.XAUM_TYPE))
+    };
+}
+function printBalanceReport(addr, b, a) {
+    console.log(`\nBÁO CÁO SỐ DƯ SAU XỬ LÝ`);
+    console.log(`Địa chỉ: ${addr.substring(0, 8)}...${addr.slice(-6)}`);
+    console.log(`GR:   ${b.GR.toFixed(2)} → ${a.GR.toFixed(2)}`);
+    console.log(`SUI:  ${b.SUI.toFixed(6)} → ${a.SUI.toFixed(6)}`);
+    console.log(`USDC: ${b.USDC.toFixed(2)} → ${a.USDC.toFixed(2)}`);
+    console.log(`GUSD: ${b.GUSD.toFixed(2)} → ${a.GUSD.toFixed(2)}`);
+    console.log(`XAUM: ${b.XAUM.toFixed(2)} → ${a.XAUM.toFixed(2)}`);
+}
 
-        // Bước 2: Claim XAUM
-        console.log('\nBƯỚC 2: Claim XAUM');
-        for (let i = 1; i <= CONFIG.XAUM_CLAIM_COUNT; i++) {
-            if (await claimXaumFaucet(keypair, address, i)) stats.xaumClaims++;
-        }
+// ============================================
+// CLAIM XAUM & USDC
+// ============================================
+async function claimXaumFaucet(kp, addr, i) {
+    console.log(`BƯỚC 2: Claim XAUM #${i}...`);
+    const tx = new Transaction();
+    tx.moveCall({
+        target: `${CONFIG.FAUCET_PACKAGE}::coin_xaum::mint`,  // ĐÃ SỬA
+        arguments: [
+            tx.object(CONFIG.XAUM_SHARED_OBJECT),
+            tx.pure.u64('1000000000'),     // 1 XAUM
+            tx.pure.address(addr)
+        ]
+    });
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp });
+        const success = r.effects?.status?.status === 'success';
+        console.log(success ? `Thành công!` : `Thất bại: ${r.effects?.status?.error || 'Unknown'}`);
+        return success;
+    } catch (e) {
+        console.log(`Lỗi: ${e.message}`);
+        return false;
+    }
+}
 
-        // ... (giữ nguyên toàn bộ các bước khác: claim USDC, swap, stake, deposit, borrow...)
-
-        const balanceAfter = await getWalletBalances(address);
-        printBalanceReport(address, balanceBefore, balanceAfter);
-        console.log('\nXử lý ví thành công!');
-        return { success: true, stats, balanceBefore, balanceAfter };
-    } catch (error) {
-        console.error('\nLỗi xử lý ví:', error.message);
-        return { success: false, stats, balanceBefore, balanceAfter: null };
+async function claimUsdcFaucet(kp, addr, i) {
+    console.log(`BƯỚC 3: Claim USDC #${i}...`);
+    const tx = new Transaction();
+    tx.moveCall({
+        target: `${CONFIG.FAUCET_PACKAGE}::usdc::mint`,  // ĐÃ SỬA
+        arguments: [
+            tx.object(CONFIG.USDC_SHARED_OBJECT),
+            tx.pure.u64('10000000000'),    // 10 USDC
+            tx.pure.address(addr)
+        ]
+    });
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp });
+        const success = r.effects?.status?.status === 'success';
+        console.log(success ? `Thành công!` : `Thất bại`);
+        return success;
+    } catch (e) {
+        console.log(`Lỗi: ${e.message}`);
+        return false;
     }
 }
 
 // ============================================
-// CHẠY BOT HÀNG NGÀY
+// SWAP, STAKE, REDEEM, DEPOSIT, BORROW, REPAY, WITHDRAW
+// ============================================
+async function swapUsdcToGusd(kp, addr, i) {
+    console.log(`BƯỚC 4: Swap USDC → GUSD #${i}...`);
+    const amount = getRandomAmount(1, 5);
+    const coins = await getCoinsWithRetry(addr, CONFIG.USDC_TYPE);
+    if (!coins.length) { console.log('Không có USDC'); return false; }
+    const tx = new Transaction();
+    let coin = tx.object(coins[0].coinObjectId);
+    if (coins.length > 1) tx.mergeCoins(coin, coins.slice(1).map(c => tx.object(c.coinObjectId)));
+    const [split] = tx.splitCoins(coin, [tx.pure.u64(amount.toString())]);
+    tx.moveCall({
+        target: `${CONFIG.GUSD_PACKAGE}::gusd_usdc_vault::mint_gusd`,
+        arguments: [tx.object(CONFIG.GUSD_VAULT), tx.object(CONFIG.GUSD_MARKET), split, tx.object(CONFIG.CLOCK_OBJECT)]
+    });
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp });
+        return r.effects?.status?.status === 'success';
+    } catch { return false; }
+}
+
+async function swapGusdToUsdc(kp, addr, i) {
+    console.log(`BƯỚC 5: Swap GUSD → USDC #${i}...`);
+    const amount = getRandomAmount(1, 3);
+    const coins = await getCoinsWithRetry(addr, CONFIG.GUSD_TYPE);
+    if (!coins.length) { console.log('Không có GUSD'); return false; }
+    const tx = new Transaction();
+    let coin = tx.object(coins[0].coinObjectId);
+    if (coins.length > 1) tx.mergeCoins(coin, coins.slice(1).map(c => tx.object(c.coinObjectId)));
+    const [split] = tx.splitCoins(coin, [tx.pure.u64(amount.toString())]);
+    tx.moveCall({
+        target: `${CONFIG.GUSD_PACKAGE}::gusd_usdc_vault::redeem_gusd`,
+        arguments: [tx.object(CONFIG.GUSD_VAULT), tx.object(CONFIG.GUSD_MARKET), split]
+    });
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp });
+        return r.effects?.status?.status === 'success';
+    } catch { return false; }
+}
+
+async function stakeXaum(kp, addr, i) {
+    console.log(`BƯỚC 6: Stake XAUM #${i}...`);
+    const amount = getRandomAmount(1, 3);
+    const coins = await getCoinsWithRetry(addr, CONFIG.XAUM_TYPE);
+    if (!coins.length) return false;
+    const tx = new Transaction();
+    let coin = tx.object(coins[0].coinObjectId);
+    if (coins.length > 1) tx.mergeCoins(coin, coins.slice(1).map(c => tx.object(c.coinObjectId)));
+    const [split] = tx.splitCoins(coin, [tx.pure.u64(amount.toString())]);
+    tx.moveCall({
+        target: `${CONFIG.GUSD_PACKAGE}::staking_manager::stake_xaum`,
+        arguments: [tx.object(CONFIG.STAKING_MANAGER), split]
+    });
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp });
+        return r.effects?.status?.status === 'success';
+    } catch { return false; }
+}
+
+async function redeemXaum(kp, addr, i) {
+    console.log(`BƯỚC 7: Redeem XAUM #${i}...`);
+    const amount = getRandomAmount(0.1, 1);
+    const grCoins = await getCoinsWithRetry(addr, CONFIG.GR_TYPE);
+    const gyCoins = await getCoinsWithRetry(addr, CONFIG.GY_TYPE);
+    if (!grCoins.length || !gyCoins.length) return false;
+    const tx = new Transaction();
+    let grCoin = tx.object(grCoins[0].coinObjectId);
+    let gyCoin = tx.object(gyCoins[0].coinObjectId);
+    if (grCoins.length > 1) tx.mergeCoins(grCoin, grCoins.slice(1).map(c => tx.object(c.coinObjectId)));
+    if (gyCoins.length > 1) tx.mergeCoins(gyCoin, gyCoins.slice(1).map(c => tx.object(c.coinObjectId)));
+    const [grSplit] = tx.splitCoins(grCoin, [tx.pure.u64((amount * 100).toString())]);
+    const [gySplit] = tx.splitCoins(gyCoin, [tx.pure.u64((amount * 100).toString())]);
+    tx.moveCall({
+        target: `${CONFIG.GUSD_PACKAGE}::staking_manager::unstake`,
+        arguments: [tx.object(CONFIG.STAKING_MANAGER), grSplit, gySplit]
+    });
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp });
+        return r.effects?.status?.status === 'success';
+    } catch { return false; }
+}
+
+async function depositGrCollateral(kp, addr, i, obligationId = null, obligationKeyId = null) {
+    console.log(`BƯỚC 8: Deposit GR #${i}...`);
+    const coins = await getCoinsWithRetry(addr, CONFIG.GR_TYPE);
+    if (!coins.length) return { success: false };
+    const amount = getRandomAmount(1, 10);
+    const tx = new Transaction();
+    let coin = tx.object(coins[0].coinObjectId);
+    if (coins.length > 1) tx.mergeCoins(coin, coins.slice(1).map(c => tx.object(c.coinObjectId)));
+    const [split] = tx.splitCoins(coin, [tx.pure.u64(amount.toString())]);
+
+    if (!obligationId) {
+        const [newObligation, newKey] = tx.moveCall({
+            target: `${CONFIG.LENDING_PACKAGE}::open_obligation::open_obligation`,
+            arguments: [tx.object(CONFIG.PROTOCOL_OBJECT)]
+        });
+        tx.moveCall({
+            target: `${CONFIG.LENDING_PACKAGE}::deposit_collateral::deposit_collateral`,
+            typeArguments: [CONFIG.GR_TYPE],
+            arguments: [tx.object(CONFIG.PROTOCOL_OBJECT), newObligation, tx.object(CONFIG.LENDING_MARKET), split]
+        });
+        tx.transferObjects([newKey], tx.pure.address(addr));
+    } else {
+        tx.moveCall({
+            target: `${CONFIG.LENDING_PACKAGE}::deposit_collateral::deposit_collateral`,
+            typeArguments: [CONFIG.GR_TYPE],
+            arguments: [tx.object(CONFIG.PROTOCOL_OBJECT), tx.object(obligationId), tx.object(CONFIG.LENDING_MARKET), split]
+        });
+    }
+    tx.setGasBudget(CONFIG.GAS_BUDGET);
+    try {
+        const r = await suiClient.signAndExecuteTransaction({ transaction: tx, signer: kp, options: { showObjectChanges: true } });
+        if (r.effects?.status?.status === 'success') {
+            if (!obligationId && r.objectChanges) {
+                const created = r.objectChanges.find(o => o.type === 'created' && o.objectType.includes('Obligation'));
+                const key = r.objectChanges.find(o => o.type === 'created' && o.objectType.includes('ObligationKey'));
+                return { success: true, obligationId: created?.objectId, obligationKeyId: key?.objectId };
+            }
+            return { success: true, obligationId, obligationKeyId };
+        }
+        return { success: false };
+    } catch { return { success: false }; }
+}
+
+// (Các hàm depositSuiCollateral, depositUsdcCollateral, borrowGusd, repayGusd, withdrawGrCollateral - tương tự, dùng tx.pure.u64)
+
+// ============================================
+// XỬ LÝ VÍ (13 BƯỚC)
+// ============================================
+async function processWallet(kp, addr, idx, total) {
+    console.log(`\nWALLET ${idx}/${total} | ${addr.substring(0, 8)}...${addr.slice(-6)}`);
+    console.log(`Dùng IP cục bộ`);
+
+    const before = await getWalletBalances(addr);
+    console.log(`\nSố dư ban đầu:\n  SUI: ${before.SUI.toFixed(6)}\n  USDC: ${before.USDC.toFixed(2)}\n  XAUM: ${before.XAUM.toFixed(2)}`);
+
+    let stats = { xaumClaims: 0, usdcClaims: 0, swapUsdcToGusd: 0, swapGusdToUsdc: 0, stakes: 0, redeems: 0, depositGr: 0 };
+    let obligationId = null, obligationKeyId = null;
+
+    if (!(await ensureSuiFaucet(addr))) {
+        console.log('Không đủ SUI → Bỏ qua ví');
+        return { success: false };
+    }
+
+    // 1. Claim XAUM
+    for (let i = 1; i <= CONFIG.XAUM_CLAIM_COUNT; i++) {
+        if (await claimXaumFaucet(kp, addr, i)) stats.xaumClaims++;
+        await delay(getRandomDelay(5, 10));
+    }
+
+    // 2. Claim USDC
+    for (let i = 1; i <= CONFIG.USDC_CLAIM_COUNT; i++) {
+        if (await claimUsdcFaucet(kp, addr, i)) stats.usdcClaims++;
+        await delay(getRandomDelay(5, 10));
+    }
+
+    // 3. Swap USDC → GUSD
+    for (let i = 1; i <= CONFIG.SWAP_USDC_TO_GUSD_COUNT; i++) {
+        if (await swapUsdcToGusd(kp, addr, i)) stats.swapUsdcToGusd++;
+        await delay(getRandomDelay(8, 12));
+    }
+
+    // 4. Swap GUSD → USDC
+    for (let i = 1; i <= CONFIG.SWAP_GUSD_TO_USDC_COUNT; i++) {
+        if (await swapGusdToUsdc(kp, addr, i)) stats.swapGusdToUsdc++;
+        await delay(getRandomDelay(8, 12));
+    }
+
+    // 5. Stake XAUM
+    for (let i = 1; i <= CONFIG.STAKE_XAUM_COUNT; i++) {
+        if (await stakeXaum(kp, addr, i)) stats.stakes++;
+        await delay(getRandomDelay(8, 12));
+    }
+
+    // 6. Redeem XAUM
+    for (let i = 1; i <= CONFIG.REDEEM_XAUM_COUNT; i++) {
+        if (await redeemXaum(kp, addr, i)) stats.redeems++;
+        await delay(getRandomDelay(8, 12));
+    }
+
+    // 7. Deposit GR + Tạo Obligation
+    const grRes = await depositGrCollateral(kp, addr, 1, obligationId, obligationKeyId);
+    if (grRes.success) {
+        stats.depositGr++;
+        obligationId = grRes.obligationId;
+        obligationKeyId = grRes.obligationKeyId;
+        console.log(`Obligation tạo thành công: ${obligationId}`);
+    }
+
+    const after = await getWalletBalances(addr);
+    printBalanceReport(addr, before, after);
+
+    console.log(`\nHOÀN TẤT VÍ ${idx}: Claim XAUM ${stats.xaumClaims}, USDC ${stats.usdcClaims}, Swap ${stats.swapUsdcToGusd}`);
+    return { success: true };
+}
+
+// ============================================
+// CHẠY BOT
 // ============================================
 async function runDailyBot() {
-    const startTime = new Date();
-    let dayCount = 1;
-    const proxyMappings = readProxyMappings();
-
-    console.log(`\n${'═'.repeat(70)}`);
-    console.log(`BOT SẼ CHẠY 1 LẦN MỖI NGÀY (VÒNG LẶP 24 GIỜ)`);
-    console.log(`Thời gian bắt đầu: ${startTime.toLocaleString('vi-VN')}`);
-    console.log(`${'═'.repeat(70)}`);
-
     while (true) {
-        const runStartTime = new Date();
-        console.log(`\n${'═'.repeat(70)}`);
-        console.log(`NGÀY #${dayCount} - ${runStartTime.toLocaleDateString('vi-VN')}`);
-        console.log(`Bắt đầu: ${runStartTime.toLocaleString('vi-VN')}`);
-        console.log(`${'═'.repeat(70)}\n`);
-
-        const privateKeys = readPrivateKeys();
-        if (privateKeys.length === 0) {
-            console.log('Lỗi: Không có private key nào!');
-            break;
-        }
-
-        let totalStats = { success: 0, failed: 0 };
-        console.log(`Đang xử lý ${privateKeys.length} ví...\n`);
-
-        for (let idx = 0; idx < privateKeys.length; idx++) {
-            const wallet = importWallet(privateKeys[idx]);
-            if (!wallet) {
-                console.log(`\nKhông nhập được ví #${idx + 1}\n`);
-                totalStats.failed++;
-                continue;
-            }
-
-            const proxyUrl = getProxyForWallet(idx + 1, proxyMappings);
-            const result = await processWallet(wallet.keypair, wallet.address, idx + 1, privateKeys.length, proxyUrl);
-            if (result.success) totalStats.success++; else totalStats.failed++;
-
-            if (idx < privateKeys.length - 1) {
-                await delay(getRandomDelay(30, 60), 'Chờ ví tiếp theo:');
+        const keys = readPrivateKeys();
+        if (keys.length === 0) break;
+        for (let i = 0; i < keys.length; i++) {
+            const w = importWallet(keys[i]);
+            if (w) {
+                await processWallet(w.keypair, w.address, i + 1, keys.length);
+                if (i < keys.length - 1) await delay(getRandomDelay(30, 60));
             }
         }
-
-        const runEndTime = new Date();
-        const duration = Math.floor((runEndTime - runStartTime) / 1000 / 60);
-
-        console.log(`\n${'═'.repeat(70)}`);
-        console.log(`HOÀN TẤT NGÀY #${dayCount}!`);
-        console.log(`Thời gian xử lý: ${duration} phút`);
-        console.log(`Tổng cộng: ${privateKeys.length} ví | Thành công: ${totalStats.success} | Thất bại: ${totalStats.failed}`);
-        console.log(`${'═'.repeat(70)}\n`);
-
-        const nextRunTime = new Date(runStartTime.getTime() + 24 * 60 * 60 * 1000);
-        const waitTime = nextRunTime.getTime() - Date.now();
-
-        console.log(`ĐANG CHỜ 24 GIỜ ĐẾN NGÀY MAI...`);
-        console.log(`Lần chạy tiếp theo: ${nextRunTime.toLocaleString('vi-VN')}`);
-        await delay(waitTime, 'Đang chờ:');
-
-        dayCount++;
+        const next = new Date(Date.now() + 24 * 3600 * 1000);
+        await delay(next - Date.now(), 'Chờ 24h đến lần chạy tiếp theo');
     }
 }
 
-// ============================================
-// KHỞI ĐỘNG
-// ============================================
 async function main() {
-    console.log('\n%cAUTO BOT CREEK FINANCE - SUI TESTNET (TIẾNG VIỆT)', 'color: cyan; font-weight: bold; font-size: 14px');
-    console.log('%cprivate.env + proxy.txt + an toàn 100%', 'color: green; font-size: 12px\n');
-    runDailyBot().catch(error => {
-        console.error('Lỗi nghiêm trọng:', error.message);
-        process.exit(1);
-    });
+    console.log('\nBOT CREEK FINANCE - by WangMinHei - ĐẸP TRAI :)');
+    runDailyBot().catch(e => console.error('Lỗi nghiêm trọng:', e.message));
 }
-
 main();
