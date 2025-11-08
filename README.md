@@ -43,4 +43,4 @@ Link đăng ký : https://beta.creek.finance/aura?inviteCode=AEHBXTAE
 
 ## CÀI ĐẶT
 
-Chạy Auto : start.bat
+Chạy Auto => start.bat
