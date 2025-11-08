@@ -35,11 +35,8 @@ Link đăng ký : https://beta.creek.finance/aura?inviteCode=AEHBXTAE
 ## BẢO MẬT 100%
 
 - Private key lưu trong `.env` → không lộ
-- 
 - `fetch` chỉ đến trang faucet chính thức
-- 
 - Không đọc file `.txt` → không bị chèn mã
-- 
 - Proxy vẫn hoạt động → che IP
 
 ---
