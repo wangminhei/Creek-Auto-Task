@@ -3,11 +3,11 @@
 // by WangMinHei - Secure & Verified
 // ============================================
 
-// MỚI - DÙNG @mysten/sui
-import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { TransactionBlock } from '@mysten/sui/transactions';
-import { SuiClient } from '@mysten/sui/client';
-import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
+// MỚI - DÙNG @mysten/sui v1+
+import { Ed25519Keypair } from '@mysten/sui/dist/keypairs/ed25519.js';
+import { TransactionBlock } from '@mysten/sui/dist/transactions.js';
+import { SuiClient } from '@mysten/sui/dist/client.js';
+import { decodeSuiPrivateKey } from '@mysten/sui/dist/cryptography.js';
 import fs from 'fs';
 import { config } from 'dotenv';
 
