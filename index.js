@@ -13,7 +13,7 @@ import { config } from 'dotenv';
 // ============================================
 // TẢI private.env
 // ============================================
-config();
+config({ path: 'private.env' });
 
 // Kiểm tra private key
 if (!process.env.PK1) {
